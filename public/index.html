@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>CRUD de Usuarios</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>CRUD de Usuarios</h1>
+
+  <form id="formUser">
+    <input type="text" id="name" placeholder="Nombre">
+    <button type="submit">Agregar</button>
+  </form>
+
+  <ul id="userList"></ul>
+
+  <script>
+    const form = document.getElementById('formUser');
+    const userList = document.getElementById('userList');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = document.getElementById('name').value;
+      if (!name) return;
+      await fetch('/usuarios', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name})
+      });
+      document.getElementById('name').value = '';
+      loadUsers();
+    });
+
+    async function loadUsers() {
+      const res = await fetch('/usuarios');
+      const users = await res.json();
+      userList.innerHTML = users.map(u => `
+        <li>
+          ${u.name} 
+          <button onclick="deleteUser(${u.id})">Eliminar</button>
+        </li>
+      `).join('');
+    }
+
+    async function deleteUser(id) {
+      await fetch('/usuarios/' + id, { method: 'DELETE' });
+      loadUsers();
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>
