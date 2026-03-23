@@ -2,52 +2,278 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>CRUD de Usuarios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema CRUD - Gestión de Usuarios</title>
   <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
-  <h1>CRUD de Usuarios</h1>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>
+        <i class="fas fa-users"></i>
+        Gestión de Usuarios
+      </h1>
+      <p>Sistema CRUD completo con diseño moderno</p>
+    </div>
 
-  <form id="formUser">
-    <input type="text" id="name" placeholder="Nombre">
-    <button type="submit">Agregar</button>
-  </form>
+    <!-- Formulario -->
+    <div class="card">
+      <h2>
+        <i class="fas fa-user-plus"></i>
+        Agregar Nuevo Usuario
+      </h2>
+      <form id="formUser" class="user-form">
+        <div class="form-group">
+          <input type="text" id="name" placeholder="Nombre completo" autocomplete="off">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i>
+            Agregar Usuario
+          </button>
+        </div>
+      </form>
+    </div>
 
-  <ul id="userList"></ul>
+    <!-- Lista de Usuarios -->
+    <div class="card">
+      <h2>
+        <i class="fas fa-list"></i>
+        Lista de Usuarios
+        <span id="userCount" class="badge">0</span>
+      </h2>
+      
+      <div id="userListContainer">
+        <div class="loading">
+          <i class="fas fa-spinner fa-spin"></i>
+          Cargando usuarios...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para editar -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>
+          <i class="fas fa-edit"></i>
+          Editar Usuario
+        </h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="editName" placeholder="Nuevo nombre">
+        <input type="hidden" id="editId">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelEdit">
+          <i class="fas fa-times"></i>
+          Cancelar
+        </button>
+        <button class="btn btn-primary" id="saveEdit">
+          <i class="fas fa-save"></i>
+          Guardar Cambios
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
+    const API_URL = window.location.origin;
     const form = document.getElementById('formUser');
-    const userList = document.getElementById('userList');
+    const userListContainer = document.getElementById('userListContainer');
+    const userCountSpan = document.getElementById('userCount');
+    
+    // Modal elements
+    const modal = document.getElementById('editModal');
+    const editNameInput = document.getElementById('editName');
+    const editIdInput = document.getElementById('editId');
+    const closeBtn = document.getElementsByClassName('close')[0];
+    const cancelBtn = document.getElementById('cancelEdit');
+    const saveBtn = document.getElementById('saveEdit');
 
+    // Mostrar notificación
+    function showNotification(message, type = 'success') {
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.innerHTML = `
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+        <span>${message}</span>
+      `;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+
+    // Cargar usuarios
+    async function loadUsers() {
+      try {
+        const res = await fetch(`${API_URL}/usuarios`);
+        const users = await res.json();
+        
+        if (users.length === 0) {
+          userListContainer.innerHTML = `
+            <div class="empty-state">
+              <i class="fas fa-user-slash"></i>
+              <p>No hay usuarios registrados</p>
+              <small>Agrega tu primer usuario usando el formulario</small>
+            </div>
+          `;
+        } else {
+          userListContainer.innerHTML = `
+            <div class="users-grid">
+              ${users.map(user => `
+                <div class="user-card">
+                  <div class="user-avatar">
+                    <i class="fas fa-user-circle"></i>
+                  </div>
+                  <div class="user-info">
+                    <h3>${escapeHtml(user.name)}</h3>
+                    <small>ID: ${user.id}</small>
+                  </div>
+                  <div class="user-actions">
+                    <button onclick="editUser(${user.id}, '${escapeHtml(user.name)}')" class="btn-icon btn-edit" title="Editar">
+                      <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <button onclick="deleteUser(${user.id})" class="btn-icon btn-delete" title="Eliminar">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+        
+        userCountSpan.textContent = users.length;
+      } catch (error) {
+        console.error('Error:', error);
+        userListContainer.innerHTML = `
+          <div class="error-state">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p>Error al cargar los usuarios</p>
+            <button onclick="loadUsers()" class="btn btn-primary">
+              <i class="fas fa-sync-alt"></i>
+              Reintentar
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // Escapar HTML para prevenir XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Agregar usuario
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const name = document.getElementById('name').value;
-      if (!name) return;
-      await fetch('/usuarios', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({name})
-      });
-      document.getElementById('name').value = '';
-      loadUsers();
+      const nameInput = document.getElementById('name');
+      const name = nameInput.value.trim();
+      
+      if (!name) {
+        showNotification('Por favor ingresa un nombre', 'error');
+        return;
+      }
+      
+      try {
+        const res = await fetch(`${API_URL}/usuarios`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name})
+        });
+        
+        if (res.ok) {
+          showNotification('Usuario agregado correctamente', 'success');
+          nameInput.value = '';
+          loadUsers();
+        } else {
+          showNotification('Error al agregar usuario', 'error');
+        }
+      } catch (error) {
+        showNotification('Error de conexión', 'error');
+      }
     });
 
-    async function loadUsers() {
-      const res = await fetch('/usuarios');
-      const users = await res.json();
-      userList.innerHTML = users.map(u => `
-        <li>
-          ${u.name} 
-          <button onclick="deleteUser(${u.id})">Eliminar</button>
-        </li>
-      `).join('');
-    }
+    // Editar usuario
+    window.editUser = function(id, name) {
+      editIdInput.value = id;
+      editNameInput.value = name;
+      modal.style.display = 'block';
+    };
 
-    async function deleteUser(id) {
-      await fetch('/usuarios/' + id, { method: 'DELETE' });
-      loadUsers();
-    }
+    // Guardar edición
+    saveBtn.addEventListener('click', async () => {
+      const id = editIdInput.value;
+      const newName = editNameInput.value.trim();
+      
+      if (!newName) {
+        showNotification('El nombre no puede estar vacío', 'error');
+        return;
+      }
+      
+      try {
+        const res = await fetch(`${API_URL}/usuarios/${id}`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: newName})
+        });
+        
+        if (res.ok) {
+          showNotification('Usuario actualizado correctamente', 'success');
+          modal.style.display = 'none';
+          loadUsers();
+        } else {
+          showNotification('Error al actualizar usuario', 'error');
+        }
+      } catch (error) {
+        showNotification('Error de conexión', 'error');
+      }
+    });
 
+    // Eliminar usuario
+    window.deleteUser = async function(id) {
+      const confirmDelete = confirm('¿Estás seguro de eliminar este usuario?');
+      if (!confirmDelete) return;
+      
+      try {
+        const res = await fetch(`${API_URL}/usuarios/${id}`, {
+          method: 'DELETE'
+        });
+        
+        if (res.ok) {
+          showNotification('Usuario eliminado correctamente', 'success');
+          loadUsers();
+        } else {
+          showNotification('Error al eliminar usuario', 'error');
+        }
+      } catch (error) {
+        showNotification('Error de conexión', 'error');
+      }
+    };
+
+    // Cerrar modal
+    function closeModal() {
+      modal.style.display = 'none';
+    }
+    
+    closeBtn.onclick = closeModal;
+    cancelBtn.onclick = closeModal;
+    
+    window.onclick = function(event) {
+      if (event.target === modal) {
+        closeModal();
+      }
+    };
+
+    // Cargar usuarios al inicio
     loadUsers();
   </script>
 </body>
